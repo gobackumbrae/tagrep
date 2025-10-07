@@ -1,0 +1,409 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>TagRep</title>
+    <style>
+      /* ---------- Theme & reset (kept from your version) ---------- */
+      *, *::before, *::after {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+        color: #fff !important;
+        background-color: #000 !important;
+        box-sizing: border-box;
+      }
+
+      /* ---------- Layout variables ---------- */
+      :root{
+        --container-w: min(900px, 100%);
+        --label-w: 160px;
+        --gap-x: 12px;
+        --gap-y: 10px;
+        --radius: 6px;
+        --border: #444;
+        --border-strong: #666;
+      }
+
+      body { margin: 20px; }
+
+      /* -------- App title -------- */
+      .app-title{
+        max-width: var(--container-w);
+        margin: 0 auto 16px;
+        font-size: 1.25rem;
+        font-weight: bold;
+        padding-bottom: 6px;
+        border-bottom: 1px solid var(--border);
+        letter-spacing: 0.5px;
+      }
+
+      /* ---------- Form as a tidy 2-column grid ---------- */
+      #tagsRepsForm{
+        max-width: var(--container-w);
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: var(--label-w) 1fr;
+        gap: var(--gap-y) var(--gap-x);
+        align-items: center;
+      }
+
+      /* Make each .row contribute its children to the grid cells */
+      .row{ display: contents; }
+
+      label{
+        text-align: right;
+        padding-top: 6px;   /* visually centers label vs input */
+        min-height: 36px;
+      }
+
+      input[type="text"]{
+        border: 1px solid var(--border-strong);
+        padding: 6px 8px;
+        width: 100%;
+        min-height: 36px;
+        border-radius: var(--radius);
+      }
+
+      /* Log button + message line up under the input column */
+      .form-actions{
+        grid-column: 2 / 3;
+        display: flex;
+        align-items: center;
+        gap: var(--gap-x);
+      }
+
+      button{
+        border: 1px solid #888;
+        padding: 6px 10px;
+        cursor: pointer;
+        border-radius: var(--radius);
+      }
+
+      /* Status message keeps a reserved height (prevents layout jumps) */
+      #msg{
+        line-height: 1.4;
+        min-height: 1.4em;
+      }
+
+      .error { color: #ff7b7b !important; background-color: transparent !important; }
+
+      /* ---------- Results table: fixed layout & column alignment ---------- */
+      #results{
+        max-width: var(--container-w);
+        margin: 16px auto 0;
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed; /* consistent column widths */
+      }
+
+      /* Helpful column sizing */
+      #results col.tags   { width: 40%; }
+      #results col.reps   { width: 12ch; }
+      #results col.time   { width: 28ch; }
+      #results col.actions{ width: 1%; } /* shrink to content */
+
+      th, td { border: 1px solid var(--border); padding: 8px; vertical-align: middle; text-align: left; }
+      caption { text-align: left; margin-bottom: 8px; font-weight: bold; }
+
+      /* Numeric and time alignment */
+      #results th:nth-child(2),
+      #results td:nth-child(2){
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      #results th:nth-child(3),
+      #results td:nth-child(3){
+        white-space: nowrap;
+      }
+
+      /* Actions cell stays tight and buttons align nicely */
+      .actions{ display: flex; gap: 6px; align-items: center; justify-content: flex-start; }
+      .btn{ border: 1px solid #888; padding: 4px 8px; cursor: pointer; background: #111 !important; border-radius: var(--radius); }
+      .btn[disabled]{ opacity:.6; cursor: not-allowed; }
+
+      /* Inputs inside table cells fill the cell for clean alignment */
+      td input[type="text"]{
+        width: 100%;
+        min-height: 32px;
+      }
+      /* Right-align the reps input when editing */
+      td:nth-child(2) input[type="text"]{ text-align: right; }
+
+      /* ---------- Responsive: stack form on narrow screens ---------- */
+      @media (max-width: 640px){
+        :root{ --label-w: 120px; }
+        #tagsRepsForm{
+          grid-template-columns: 1fr;
+        }
+        label{ text-align: left; padding-top: 0; }
+        .form-actions{ grid-column: 1 / -1; } /* full width row */
+        /* Allow timestamp to wrap on small screens */
+        #results th:nth-child(3), #results td:nth-child(3){ white-space: normal; }
+      }
+
+      /* Nice focus ring without fighting the global theme */
+      :focus-visible{
+        outline: 2px dashed #888;
+        outline-offset: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 class="app-title">TagRep</h1>
+
+    <form id="tagsRepsForm">
+      <div class="row">
+        <label for="tags">Exercise(s):</label>
+        <input type="text" id="tags" name="tags" autocomplete="off" placeholder="e.g. push-ups, squats, bench press">
+      </div>
+      <div class="row">
+        <label for="reps">Rep(s):</label>
+        <input type="text" id="reps" name="reps" autocomplete="off" placeholder="e.g. 12 or 8.5">
+      </div>
+
+      <!-- New wrapper so the button and message align under the input column -->
+      <div class="form-actions">
+        <button type="submit">Log</button>
+        <span id="msg" role="status" aria-live="polite"></span>
+      </div>
+    </form>
+
+    <table id="results" style="display:none">
+      <caption>TagRep — Workout Log</caption>
+
+      <!-- Column hints for consistent widths -->
+      <colgroup>
+        <col class="tags">
+        <col class="reps">
+        <col class="time">
+        <col class="actions">
+      </colgroup>
+
+      <thead>
+        <tr>
+          <th>Exercise(s)</th>
+          <th>Rep(s)</th>
+          <th>Timestamp</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <script>
+      (function(){
+        const form = document.getElementById('tagsRepsForm');
+        const msg = document.getElementById('msg');
+        const table = document.getElementById('results');
+        const tbody = table.querySelector('tbody');
+
+        function parseTags(raw){
+          return raw
+            .split(',')
+            .map(t => t.trim())
+            .filter(t => t.length > 0);
+        }
+
+        function dedupeTags(tags){
+          const seen = new Set();
+          const out = [];
+          for (const t of tags){
+            if (seen.has(t)) continue;
+            seen.add(t);
+            out.push(t);
+          }
+          return out;
+        }
+
+        function validateReps(raw){
+          const num = Number(raw);
+          if (!isFinite(num) || num <= 0) return null;
+          return num;
+        }
+
+        function validateTimestamp(raw){
+          const d = new Date(raw);
+          if (isNaN(d.getTime())) return null;
+          return d.toISOString();
+        }
+
+        function renderRow(displayTags, repsNum, timestampStr){
+          const tr = document.createElement('tr');
+
+          const tdTags = document.createElement('td');
+          const tdReps = document.createElement('td');
+          const tdTime = document.createElement('td');
+          const tdActions = document.createElement('td');
+
+          tdTags.textContent = displayTags.join(', ');
+          tdReps.textContent = String(repsNum);
+          tdTime.textContent = timestampStr;
+
+          const editBtn = document.createElement('button');
+          editBtn.type = 'button';
+          editBtn.textContent = 'Edit';
+          editBtn.className = 'btn edit';
+
+          const saveBtn = document.createElement('button');
+          saveBtn.type = 'button';
+          saveBtn.textContent = 'Save';
+          saveBtn.className = 'btn save';
+          saveBtn.style.display = 'none';
+
+          const cancelBtn = document.createElement('button');
+          cancelBtn.type = 'button';
+          cancelBtn.textContent = 'Cancel';
+          cancelBtn.className = 'btn cancel';
+          cancelBtn.style.display = 'none';
+
+          const actionWrap = document.createElement('div');
+          actionWrap.className = 'actions';
+          actionWrap.appendChild(editBtn);
+          actionWrap.appendChild(saveBtn);
+          actionWrap.appendChild(cancelBtn);
+
+          tdActions.appendChild(actionWrap);
+
+          tr.appendChild(tdTags);
+          tr.appendChild(tdReps);
+          tr.appendChild(tdTime);
+          tr.appendChild(tdActions);
+
+          tr.dataset.tags = tdTags.textContent;
+          tr.dataset.reps = tdReps.textContent;
+          tr.dataset.time = tdTime.textContent;
+
+          tbody.appendChild(tr);
+        }
+
+        function enterEditMode(tr){
+          const [tdTags, tdReps, tdTime, tdActions] = tr.children;
+
+          const tagsInput = document.createElement('input');
+          tagsInput.type = 'text';
+          tagsInput.value = tr.dataset.tags;
+          tagsInput.style.width = '100%';
+
+          const repsInput = document.createElement('input');
+          repsInput.type = 'text';
+          repsInput.value = tr.dataset.reps;
+          repsInput.style.width = '100%';
+
+          const timeInput = document.createElement('input');
+          timeInput.type = 'text';
+          timeInput.value = tr.dataset.time;
+          timeInput.style.width = '100%';
+
+          tdTags.textContent = '';
+          tdTags.appendChild(tagsInput);
+          tdReps.textContent = '';
+          tdReps.appendChild(repsInput);
+          tdTime.textContent = '';
+          tdTime.appendChild(timeInput);
+
+          tdActions.querySelector('.edit').style.display = 'none';
+          tdActions.querySelector('.save').style.display = '';
+          tdActions.querySelector('.cancel').style.display = '';
+
+          tagsInput.focus();
+        }
+
+        function exitEditMode(tr, apply){
+          const [tdTags, tdReps, tdTime, tdActions] = tr.children;
+          const saveBtn = tdActions.querySelector('.save');
+          const cancelBtn = tdActions.querySelector('.cancel');
+          const editBtn = tdActions.querySelector('.edit');
+
+          if (apply){
+            const rawTags = tdTags.querySelector('input')?.value ?? '';
+            const rawReps = tdReps.querySelector('input')?.value ?? '';
+            const rawTime = tdTime.querySelector('input')?.value ?? '';
+
+            let tags = parseTags(rawTags);
+            if (tags.length === 0){
+              showMsg('Please enter at least one exercise name (comma separated).');
+              return;
+            }
+            tags = dedupeTags(tags);
+
+            const reps = validateReps(rawReps);
+            if (reps === null){
+              showMsg('Rep(s) must be a positive number (fractions allowed).');
+              return;
+            }
+
+            const tsISO = validateTimestamp(rawTime);
+            if (tsISO === null){
+              showMsg('Timestamp must be a valid date/time (try ISO 8601 format).');
+              return;
+            }
+
+            tr.dataset.tags = tags.join(', ');
+            tr.dataset.reps = String(reps);
+            tr.dataset.time = tsISO;
+            tdTags.textContent = tr.dataset.tags;
+            tdReps.textContent = tr.dataset.reps;
+            tdTime.textContent = tr.dataset.time;
+          } else {
+            tdTags.textContent = tr.dataset.tags;
+            tdReps.textContent = tr.dataset.reps;
+            tdTime.textContent = tr.dataset.time;
+          }
+
+          saveBtn.style.display = 'none';
+          cancelBtn.style.display = 'none';
+          editBtn.style.display = '';
+        }
+
+        function showMsg(text){
+          msg.textContent = text;
+          msg.className = 'error';
+          setTimeout(()=>{ msg.textContent=''; msg.className=''; }, 2500);
+        }
+
+        form.addEventListener('submit', function(e){
+          e.preventDefault();
+          msg.textContent = '';
+          msg.className = '';
+
+          const rawTags = document.getElementById('tags').value || '';
+          const rawReps = document.getElementById('reps').value || '';
+
+          let tags = parseTags(rawTags);
+          if (tags.length === 0){
+            showMsg('Please enter at least one exercise name (comma separated).');
+            return;
+          }
+
+          tags = dedupeTags(tags);
+
+          const reps = validateReps(rawReps);
+          if (reps === null){
+            showMsg('Rep(s) must be a positive number (fractions allowed).');
+            return;
+          }
+
+          const ts = new Date();
+          const tsStr = ts.toISOString();
+
+          renderRow(tags, reps, tsStr);
+          table.style.display = '';
+        });
+
+        tbody.addEventListener('click', function(e){
+          const btn = e.target.closest('button');
+          if (!btn) return;
+          const tr = btn.closest('tr');
+          if (!tr) return;
+
+          if (btn.classList.contains('edit')){
+            enterEditMode(tr);
+          } else if (btn.classList.contains('save')){
+            exitEditMode(tr, true);
+          } else if (btn.classList.contains('cancel')){
+            exitEditMode(tr, false);
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>
