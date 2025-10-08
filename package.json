@@ -1,0 +1,24 @@
+{
+  "name": "tagrep",
+  "version": "1.0.0",
+  "description": "Single-file HTML/JS exercise reps logger with inline edit support. Open `index.html` in any modern browser.",
+  "main": "sw.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gobackumbrae/tagrep.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/gobackumbrae/tagrep/issues"
+  },
+  "homepage": "https://github.com/gobackumbrae/tagrep#readme",
+  "devDependencies": {
+    "pngjs": "^7.0.0"
+  }
+}
